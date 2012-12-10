@@ -1,16 +1,59 @@
--- BranchMine
+-- BranchMiner
 -- ComputerCraft  mining turtle script
 
 -- a couple global dictionaries to save space later
 
 detect = { U = turtle.detectUp, F = turtle.detect,  D = turtle.detectDown }
-move =   { U = turtle.up,       F = turtle.forward, D = turtle.down,       B = turtle.back }
+move =   { U = turtle.up,       F = turtle.forward, D = turtle.down }
 dig =    { U = turtle.digUp,    F = turtle.dig,     D = turtle.digDown }
 
 function main()
     showusage()
     vertshaft()
+
+    -- fix: move ahead one to keep from wrecking the ladder
+    failsafe_move("F")
+
+    -- about face and leave a ladder
+    aboutface()
+    turtle.select(14)
+    turtle.place()
+    aboutface()
+
+    -- dig ye big main tunnel
     bigtunnel(12)
+
+    -- dig the 2x2 branch shaft
+    aboutface()
+    failsafe_move("F")
+    turtle.turnLeft()
+
+    -- going down the right-hand side, place torches
+    -- this creates a 256-meter long tunnel (64 1x2 branches)
+    branchtunnel(256, true)
+
+    -- make a U-turn aligning with the other side
+    failsafe_move("F")
+    turtle.digDown()
+
+    failsafe_move("F")
+    turtle.digDown()
+
+    turtle.turnLeft()
+
+    failsafe_move("F")
+    turtle.digDown()
+
+    turtle.turnLeft()
+
+    -- make the return trip
+    branchtunnel(256, false)
+end
+
+function aboutface()
+    -- i just hate typing the same thing over and over again
+    turtle.turnLeft()
+    turtle.turnLeft()
 end
 
 function showusage()
@@ -22,9 +65,12 @@ function showusage()
 end
 
 function failsafe_move(mdir)
-    -- accepts a single letter ("U", "D", "F", "B") and moves in that direction.
+    -- accepts a single letter ("U", "D", "F") and moves in that direction.
     -- if there's sand/gravel in the way, this will clear it first
     -- if the turtle is out of fuel, it will consume fuel from slot 16 first.
+
+    -- "back" is not presently supported by this function since there are no
+    -- detect or dig back functions available.
 
     -- first, make sure that there's fuel to operate
     if turtle.getFuelLevel() == 0 then
@@ -116,15 +162,66 @@ function bigtunnel(len)
     end
 end
 
-function branchtunnel(len)
-    -- creates a 2x2 tunnel with 1x2 alcoves every 4 meters for layered branch mining
-    
+function branchtunnel(len, torches)
+    -- creates a 2x2 tunnel with 1x2 alcoves every 4 meters for layered branch 
+    -- mining.  Arguments indicate how many meters the turtle is supposed to
+    -- go and if torches should be placed during this operation.  When used
+    -- here, the first pass is on the right hand side with torches.  The return
+    -- trip is done without placing them.
+
+    for distance = 1, len do
+        -- dig forward
+        turtle.dig()
+
+        -- move forward
+        failsafe_move("F")
+
+        -- dig up
+        turtle.digUp()
+        
+        -- if distance % 4 == 3
+        if distance % 4 == 3 then
+            -- make an alcove that will be used for branching later
+            turtle.turnRight()
+            turtle.dig()
+            failsafe_move("F")
+            turtle.digUp()
+            aboutface()
+            turtle.turnRight()
+        end
+
+        -- if distance % 4 == 0 and torches == true
+            -- place a torch above
+        if distance % 4 == 0 and torches == true then
+            select(15)
+            turtle.placeUp()
+        end
+
+        -- every 64 meters, do an inventory check
+        if distance % 64 == 0 then
+            checkinventory()
+        end
+    end
 end
 
 function checkinventory()
     -- checks to see if slot #12 contains any items.
     -- if it does, create a chest and unload into it.
     -- This is not an ideal solution, but it works better than nothing.
+
+    if turtle.getItemCount(12) > 0 then
+        -- create a spot for a chest and place it
+        turtle.digDown()
+        turtle.select(13)
+        turtle.placeDown()
+
+        -- dump everything non-essential in the chest
+        for k = 1,12 do
+            turtle.select(k)
+            turtle.dropDown()
+        end
+
+    end
 end
 
 main()
